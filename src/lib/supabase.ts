@@ -5,10 +5,16 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+export function getPublicUrl(bucket: string, path: string) {
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl || '';
+}
+
 export interface Profile {
   id: string;
   email: string;
   name: string;
+  avatar_url?: string;
   balance: number;
   is_admin: boolean;
   created_at: string;

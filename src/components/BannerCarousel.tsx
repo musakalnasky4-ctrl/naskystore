@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Banner } from '../lib/supabase';
+import { Banner, getPublicUrl } from '../lib/supabase';
 
 interface BannerCarouselProps {
   banners: Banner[];
@@ -52,7 +52,7 @@ export default function BannerCarousel({ banners }: BannerCarouselProps) {
             }`}
           >
             <img
-              src={banner.image_url}
+              src={getPublicUrl('banners', banner.image_url)}
               alt={banner.title}
               className="w-full h-full object-cover"
             />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Menu } from 'lucide-react';
 import { supabase, Profile, Banner, Product, Order } from './lib/supabase';
 import Sidebar from './components/Sidebar';
@@ -14,7 +14,6 @@ import ProductDetail from './components/ProductDetail';
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentSection, setCurrentSection] = useState('home');
   const [user, setUser] = useState<Profile | null>(null);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -25,42 +24,8 @@ function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductDetail, setShowProductDetail] = useState(false);
 
-  useEffect(() => {
-    checkUser();
-    fetchBanners();
-    fetchProducts();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      (() => {
-        if (session?.user) {
-          fetchUserProfile(session.user.id);
-        } else {
-          setUser(null);
-          setOrders([]);
-        }
-      })();
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      fetchOrders(user.id);
-    }
-  }, [user]);
-
-  const checkUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await fetchUserProfile(session.user.id);
-    }
-  };
-
-  const fetchUserProfile = async (userId: string) => {
-    const { data, error } = await supabase
+  const fetchUserProfile = useCallback(async (userId: string) => {
+    const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
@@ -69,7 +34,66 @@ function App() {
     if (data) {
       setUser(data);
     }
-  };
+  }, []);
+
+  const checkUser = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await fetchUserProfile(session.user.id);
+    }
+  }, [fetchUserProfile]);
+
+  useEffect(() => {
+    checkUser();
+    fetchBanners();
+    fetchProducts();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!profile) {
+          const { data: newUser, error } = await supabase
+            .from('profiles')
+            .insert({
+              id: session.user.id,
+              email: session.user.email,
+              name: session.user.user_metadata.full_name || session.user.email,
+              avatar_url: session.user.user_metadata.avatar_url,
+              balance: 0,
+              is_admin: false,
+            })
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Error creating profile:', error);
+          } else {
+            setUser(newUser as Profile);
+          }
+        } else {
+          setUser(profile);
+        }
+      } else {
+        setUser(null);
+        setOrders([]);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [checkUser]);
+
+  useEffect(() => {
+    if (user) {
+      fetchOrders(user.id);
+    }
+  }, [user]);
 
   const fetchBanners = async () => {
     const { data } = await supabase
@@ -116,6 +140,16 @@ function App() {
 
     if (data.user) {
       await fetchUserProfile(data.user.id);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    });
+
+    if (error) {
+      console.error('Error logging in with Google:', error);
     }
   };
 
@@ -186,7 +220,7 @@ function App() {
     await fetchUserProfile(user.id);
   };
 
-  const handlePurchase = async (product: Product, useBalance: boolean, promoCode?: string, finalPrice?: number) => {
+  const handlePurchase = async (product: Product, useBalance = false, promoCode?: string, finalPrice?: number) => {
     if (!user) {
       alert('Silakan login terlebih dahulu');
       setLoginModalOpen(true);
@@ -304,7 +338,7 @@ function App() {
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        onNavigate={(section) => setCurrentSection(section)}
+        onNavigate={() => {}}
       />
 
       <div className="container mx-auto px-4 py-6">
@@ -356,6 +390,7 @@ function App() {
         onClose={() => setLoginModalOpen(false)}
         onLogin={handleLogin}
         onSignup={handleSignup}
+        onGoogleLogin={handleGoogleLogin}
       />
 
       <EditProfileModal

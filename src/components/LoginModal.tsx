@@ -6,9 +6,10 @@ interface LoginModalProps {
   onClose: () => void;
   onLogin: (email: string, password: string) => Promise<void>;
   onSignup: (email: string, password: string, name: string) => Promise<void>;
+  onGoogleLogin: () => Promise<void>;
 }
 
-export default function LoginModal({ isOpen, onClose, onLogin, onSignup }: LoginModalProps) {
+export default function LoginModal({ isOpen, onClose, onLogin, onSignup, onGoogleLogin }: LoginModalProps) {
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,8 +31,12 @@ export default function LoginModal({ isOpen, onClose, onLogin, onSignup }: Login
         await onLogin(email, password);
       }
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Terjadi kesalahan');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Terjadi kesalahan');
+      }
     } finally {
       setLoading(false);
     }
@@ -132,6 +137,27 @@ export default function LoginModal({ isOpen, onClose, onLogin, onSignup }: Login
             </button>
           </div>
         </form>
+
+        <div className="relative flex items-center justify-center p-6 pt-0">
+          <span className="absolute w-full h-px bg-gray-200"></span>
+          <span className="relative bg-white px-2 text-sm text-gray-500">
+            OR
+          </span>
+        </div>
+
+        <div className="p-6 pt-0">
+          <button
+            onClick={onGoogleLogin}
+            className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-200"
+          >
+            <img
+              src="https://www.google.com/favicon.ico"
+              alt="Google"
+              className="w-5 h-5"
+            />
+            Login dengan Google
+          </button>
+        </div>
       </div>
     </div>
   );

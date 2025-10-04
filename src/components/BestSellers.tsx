@@ -1,5 +1,5 @@
 import { Star } from 'lucide-react';
-import { Product } from '../lib/supabase';
+import { Product, getPublicUrl } from '../lib/supabase';
 
 interface BestSellersProps {
   products: Product[];
@@ -25,7 +25,7 @@ export default function BestSellers({ products, onProductClick }: BestSellersPro
           >
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300 shadow-md">
               <img
-                src={product.image_url}
+                src={getPublicUrl('products', product.image_url)}
                 alt={product.name}
                 className="w-16 h-16 rounded-full object-cover"
               />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Tag } from 'lucide-react';
 import { Product, Profile, supabase } from '../lib/supabase';
 
@@ -90,7 +90,7 @@ export default function ProductDetail({ product, profile, onBack, onPurchase }: 
       setAppliedPromo(data);
       setDiscount(calculatedDiscount);
       setPromoError('');
-    } catch (err) {
+    } catch {
       setPromoError('Terjadi kesalahan');
       setAppliedPromo(null);
       setDiscount(0);

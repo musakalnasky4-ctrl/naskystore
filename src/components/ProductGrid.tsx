@@ -1,5 +1,5 @@
 import { ShoppingCart } from 'lucide-react';
-import { Product } from '../lib/supabase';
+import { Product, getPublicUrl } from '../lib/supabase';
 
 interface ProductGridProps {
   products: Product[];
@@ -20,7 +20,7 @@ export default function ProductGrid({ products, onProductClick }: ProductGridPro
           >
             <div className="relative h-48 overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
               <img
-                src={product.image_url}
+                src={getPublicUrl('products', product.image_url)}
                 alt={product.name}
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
               />

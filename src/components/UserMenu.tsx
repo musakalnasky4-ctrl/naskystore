@@ -33,7 +33,15 @@ export default function UserMenu({ user, onLogin, onLogout, onAdminLogin, onEdit
               <div className="p-4">
                 <div className="flex items-center space-x-3 pb-3 border-b border-gray-200">
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-white" />
+                    {user.avatar_url ? (
+                      <img
+                        src={user.avatar_url}
+                        alt={user.name}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-6 h-6 text-white" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-gray-800">{user.name || 'User'}</p>
