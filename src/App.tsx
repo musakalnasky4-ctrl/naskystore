@@ -420,6 +420,7 @@ function App() {
             onLogout={handleLogout}
             onAdminLogin={handleAdminLogin}
             onEditProfile={() => setEditProfileModalOpen(true)}
+            onDepositHistory={() => handleNavigate('deposit-history')}
           />
         </header>
 

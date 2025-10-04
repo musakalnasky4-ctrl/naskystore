@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, LogIn, LogOut, Settings, Shield } from 'lucide-react';
+import { User, LogIn, LogOut, Settings, Shield, History } from 'lucide-react';
 import { Profile } from '../lib/supabase';
 
 interface UserMenuProps {
@@ -8,9 +8,10 @@ interface UserMenuProps {
   onLogout: () => void;
   onAdminLogin: () => void;
   onEditProfile: () => void;
+  onDepositHistory: () => void;
 }
 
-export default function UserMenu({ user, onLogin, onLogout, onAdminLogin, onEditProfile }: UserMenuProps) {
+export default function UserMenu({ user, onLogin, onLogout, onAdminLogin, onEditProfile, onDepositHistory }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -51,6 +52,17 @@ export default function UserMenu({ user, onLogin, onLogout, onAdminLogin, onEdit
                   >
                     <Settings className="w-4 h-4" />
                     <span className="text-sm">Edit Profile</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onDepositHistory();
+                      setIsOpen(false);
+                    }}
+                    className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <History className="w-4 h-4" />
+                    <span className="text-sm">History Deposit</span>
                   </button>
 
                   {!user.is_admin && (
