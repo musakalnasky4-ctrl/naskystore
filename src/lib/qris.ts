@@ -1,4 +1,5 @@
 import { supabase, QRISPayment } from './supabase';
+import { generateDynamicQRIS, generateUniqueFee, calculateExpiryTime } from './qrisGenerator';
 
 export async function generateQRISPayment(
   userId: string,
@@ -6,18 +7,26 @@ export async function generateQRISPayment(
   type: 'deposit' | 'purchase',
   referenceId?: string
 ): Promise<QRISPayment> {
+  // Generate fee unik untuk setiap transaksi (1-999)
+  const uniqueFee = generateUniqueFee();
+  const totalAmount = amount + uniqueFee;
+
+  // Generate QRIS dinamis dengan nominal
+  const qrisString = generateDynamicQRIS(amount, uniqueFee);
+
+  // Generate kode QRIS unik
   const qrisCode = `QRIS${Date.now()}${Math.random().toString(36).substring(7).toUpperCase()}`;
 
-  const expiresAt = new Date();
-  expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+  // Set expiry 30 menit
+  const expiresAt = calculateExpiryTime(30);
 
   const { data, error } = await supabase
     .from('qris_payments')
     .insert({
       user_id: userId,
-      qris_code: qrisCode,
+      qris_code: qrisString,
       qris_url: `https://qris.id/pay/${qrisCode}`,
-      amount,
+      amount: totalAmount,
       type,
       reference_id: referenceId || null,
       status: 'pending',

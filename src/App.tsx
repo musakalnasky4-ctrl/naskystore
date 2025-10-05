@@ -9,7 +9,7 @@ import BestSellers from './components/BestSellers';
 import ProductGrid from './components/ProductGrid';
 import LoginModal from './components/LoginModal';
 import EditProfileModal from './components/EditProfileModal';
-import ProductModal from './components/ProductModal';
+import ProductPurchaseModal from './components/ProductPurchaseModal';
 import ProductDetail from './components/ProductDetail';
 import DepositPage from './components/DepositPage';
 import ComingSoonPage from './components/ComingSoonPage';
@@ -230,16 +230,14 @@ function App() {
     await fetchUserProfile(user.id);
   };
 
-  const handlePurchase = async (product: Product, useBalance: boolean, promoCode?: string, finalPrice?: number) => {
+  const handlePurchaseWithBalance = async (product: Product) => {
     if (!user) {
       alert('Silakan login terlebih dahulu');
       setLoginModalOpen(true);
       return;
     }
 
-    const purchasePrice = finalPrice || product.price;
-
-    if (useBalance && user.balance < purchasePrice) {
+    if (user.balance < product.price) {
       alert('Saldo tidak cukup! Silakan deposit terlebih dahulu.');
       return;
     }
@@ -249,18 +247,16 @@ function App() {
       return;
     }
 
-    if (useBalance) {
-      const newBalance = user.balance - purchasePrice;
+    const newBalance = user.balance - product.price;
 
-      const { error: balanceError } = await supabase
-        .from('profiles')
-        .update({ balance: newBalance })
-        .eq('id', user.id);
+    const { error: balanceError } = await supabase
+      .from('profiles')
+      .update({ balance: newBalance })
+      .eq('id', user.id);
 
-      if (balanceError) {
-        alert('Terjadi kesalahan saat memproses pembayaran');
-        return;
-      }
+    if (balanceError) {
+      alert('Terjadi kesalahan saat memproses pembayaran');
+      return;
     }
 
     const newStock = product.stock - 1;
@@ -280,7 +276,7 @@ function App() {
       .insert({
         user_id: user.id,
         product_id: product.id,
-        amount: purchasePrice,
+        amount: product.price,
         status: 'completed',
       });
 
@@ -289,14 +285,52 @@ function App() {
       return;
     }
 
-    if (promoCode) {
-      await supabase.rpc('increment_promo_usage', { promo_code: promoCode });
-    }
-
-    alert(useBalance ? 'Pembelian berhasil!' : 'Pesanan dibuat! Silakan selesaikan pembayaran QRIS.');
     await fetchUserProfile(user.id);
     await fetchProducts();
-    setShowProductDetail(false);
+    await fetchOrders();
+  };
+
+  const handlePurchaseWithQRIS = async (product: Product, qrisPaymentId: string) => {
+    if (!user) {
+      alert('Silakan login terlebih dahulu');
+      setLoginModalOpen(true);
+      return;
+    }
+
+    if (product.stock === 0) {
+      alert('Stok habis!');
+      return;
+    }
+
+    const newStock = product.stock - 1;
+
+    const { error: stockError } = await supabase
+      .from('products')
+      .update({ stock: newStock })
+      .eq('id', product.id);
+
+    if (stockError) {
+      alert('Terjadi kesalahan saat memperbarui stok');
+      return;
+    }
+
+    const { error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        user_id: user.id,
+        product_id: product.id,
+        amount: product.price,
+        status: 'completed',
+        qris_payment_id: qrisPaymentId,
+      });
+
+    if (orderError) {
+      alert('Terjadi kesalahan saat membuat pesanan');
+      return;
+    }
+
+    await fetchProducts();
+    await fetchOrders();
   };
 
   const handleDeposit = async (amount: number, qrisPaymentId: string) => {
@@ -388,7 +422,8 @@ function App() {
         product={selectedProduct}
         profile={user}
         onBack={() => setShowProductDetail(false)}
-        onPurchase={handlePurchase}
+        onPurchaseWithBalance={handlePurchaseWithBalance}
+        onPurchaseWithQRIS={handlePurchaseWithQRIS}
       />
     );
   }
@@ -461,11 +496,13 @@ function App() {
         onUpdate={handleUpdateProfile}
       />
 
-      <ProductModal
+      <ProductPurchaseModal
         isOpen={productModalOpen}
         onClose={() => setProductModalOpen(false)}
         product={selectedProduct}
-        onPurchase={handlePurchase}
+        profile={user}
+        onPurchaseWithBalance={handlePurchaseWithBalance}
+        onPurchaseWithQRIS={handlePurchaseWithQRIS}
       />
     </div>
   );

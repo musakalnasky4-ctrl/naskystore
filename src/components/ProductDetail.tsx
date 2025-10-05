@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Tag } from 'lucide-react';
-import { Product, Profile, supabase } from '../lib/supabase';
+import { ArrowLeft, Tag, Wallet, QrCode } from 'lucide-react';
+import { Product, Profile, QRISPayment, supabase } from '../lib/supabase';
+import { generateQRISPayment } from '../lib/qris';
+import QRISPaymentModal from './QRISPaymentModal';
 
 interface PromoCode {
   id: string;
@@ -14,17 +16,19 @@ interface ProductDetailProps {
   product: Product;
   profile: Profile | null;
   onBack: () => void;
-  onPurchase: (product: Product, useBalance: boolean, promoCode?: string, finalPrice?: number) => Promise<void>;
+  onPurchaseWithBalance: (product: Product) => Promise<void>;
+  onPurchaseWithQRIS: (product: Product, qrisPaymentId: string) => Promise<void>;
 }
 
-export default function ProductDetail({ product, profile, onBack, onPurchase }: ProductDetailProps) {
-  const [paymentMethod, setPaymentMethod] = useState<'qris' | 'balance'>('qris');
-  const [useBalance, setUseBalance] = useState(false);
+export default function ProductDetail({ product, profile, onBack, onPurchaseWithBalance, onPurchaseWithQRIS }: ProductDetailProps) {
+  const [paymentMethod, setPaymentMethod] = useState<'balance' | 'qris' | null>(null);
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
   const [promoError, setPromoError] = useState('');
   const [discount, setDiscount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [qrisPayment, setQrisPayment] = useState<QRISPayment | null>(null);
+  const [showQRIS, setShowQRIS] = useState(false);
 
   const subtotal = product.price;
   const finalPrice = subtotal - discount;
@@ -106,13 +110,66 @@ export default function ProductDetail({ product, profile, onBack, onPurchase }: 
     setPromoError('');
   };
 
-  const handlePayment = async () => {
-    if (useBalance && (!profile || profile.balance < finalPrice)) {
+  const handleBalancePurchase = async () => {
+    if (!profile || profile.balance < finalPrice) {
       alert('Saldo tidak cukup');
       return;
     }
 
-    await onPurchase(product, useBalance, appliedPromo?.code, finalPrice);
+    setLoading(true);
+    try {
+      await onPurchaseWithBalance(product);
+      alert('Pembelian berhasil! Cek riwayat pesanan untuk detail akun.');
+      onBack();
+    } catch (error) {
+      alert('Terjadi kesalahan saat membeli produk');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQRISPurchase = async () => {
+    if (!profile) {
+      alert('Silakan login terlebih dahulu');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const qris = await generateQRISPayment(
+        profile.id,
+        finalPrice,
+        'purchase',
+        product.id
+      );
+
+      setQrisPayment(qris);
+      setShowQRIS(true);
+    } catch (error) {
+      alert('Terjadi kesalahan saat membuat QRIS');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQRISPaymentComplete = async () => {
+    if (!qrisPayment) return;
+
+    try {
+      await onPurchaseWithQRIS(product, qrisPayment.id);
+      alert('Pembayaran berhasil! Cek riwayat pesanan untuk detail akun.');
+      onBack();
+    } catch (error) {
+      alert('Terjadi kesalahan saat memproses pembelian');
+      console.error(error);
+    }
+  };
+
+  const handleCloseQRIS = () => {
+    setShowQRIS(false);
+    setQrisPayment(null);
   };
 
   return (
@@ -228,56 +285,8 @@ export default function ProductDetail({ product, profile, onBack, onPurchase }: 
             )}
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Gunakan Saldo
-            </label>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setUseBalance(true)}
-                className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all ${
-                  useBalance
-                    ? 'border-blue-500 bg-blue-500'
-                    : 'border-gray-300 bg-white'
-                }`}
-              >
-                <div
-                  className={`w-6 h-6 rounded-full ${
-                    useBalance ? 'bg-white' : 'bg-transparent'
-                  }`}
-                />
-              </button>
-              <span className="font-medium text-gray-700">Ya</span>
-
-              <button
-                onClick={() => setUseBalance(false)}
-                className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all ${
-                  !useBalance
-                    ? 'border-blue-500 bg-blue-500'
-                    : 'border-gray-300 bg-white'
-                }`}
-              >
-                <div
-                  className={`w-6 h-6 rounded-full ${
-                    !useBalance ? 'bg-white' : 'bg-transparent'
-                  }`}
-                />
-              </button>
-              <span className="font-medium text-gray-700">Tidak</span>
-            </div>
-            {profile && (
-              <p className="text-sm text-gray-500 mt-2">
-                Saldo tersedia: Rp {profile.balance.toLocaleString('id-ID')}
-              </p>
-            )}
-          </div>
-
-          <div className="border-t border-gray-200 pt-6">
+          <div className="border-t border-gray-200 pt-6 mb-6">
             <div className="space-y-3 mb-6">
-              <div className="flex justify-between text-gray-600">
-                <span>Metode Pembayaran</span>
-                <span className="font-medium">{paymentMethod === 'qris' ? 'QRIS' : 'Saldo'}</span>
-              </div>
               <div className="flex justify-between text-gray-600">
                 <span>Promo Code</span>
                 <span className="font-medium">
@@ -290,16 +299,98 @@ export default function ProductDetail({ product, profile, onBack, onPurchase }: 
               </div>
             </div>
 
-            <button
-              onClick={handlePayment}
-              disabled={product.stock === 0 || (useBalance && (!profile || profile.balance < finalPrice))}
-              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-            >
-              {product.stock === 0 ? 'Stok Habis' : 'Bayar Sekarang'}
-            </button>
+            {profile && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-xl">
+                <p className="text-sm text-gray-600 mb-1">Saldo Anda</p>
+                <p className="text-xl font-bold text-green-600">
+                  Rp {profile.balance.toLocaleString('id-ID')}
+                </p>
+              </div>
+            )}
+
+            {!paymentMethod ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-gray-700 mb-2">Pilih Metode Pembayaran</p>
+
+                <button
+                  onClick={() => setPaymentMethod('balance')}
+                  disabled={!profile || profile.balance < finalPrice || product.stock === 0}
+                  className={`w-full p-4 rounded-xl border-2 transition-all flex items-center space-x-4 ${
+                    profile && profile.balance >= finalPrice && product.stock > 0
+                      ? 'border-green-500 bg-green-50 hover:bg-green-100'
+                      : 'border-gray-300 bg-gray-50 opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center">
+                    <Wallet className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-gray-800">Bayar dengan Saldo</p>
+                    <p className="text-xs text-gray-500">
+                      {!profile || profile.balance < finalPrice ? 'Saldo tidak mencukupi' : 'Instant'}
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setPaymentMethod('qris')}
+                  disabled={product.stock === 0}
+                  className={`w-full p-4 rounded-xl border-2 transition-all flex items-center space-x-4 ${
+                    product.stock > 0
+                      ? 'border-blue-500 bg-blue-50 hover:bg-blue-100'
+                      : 'border-gray-300 bg-gray-50 opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center">
+                    <QrCode className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-gray-800">Bayar dengan QRIS</p>
+                    <p className="text-xs text-gray-500">Scan & Pay</p>
+                  </div>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  onClick={() => setPaymentMethod(null)}
+                  className="text-sm text-gray-600 hover:text-gray-800 mb-2"
+                >
+                  ← Ganti metode pembayaran
+                </button>
+
+                {paymentMethod === 'balance' && (
+                  <button
+                    onClick={handleBalancePurchase}
+                    disabled={loading || product.stock === 0}
+                    className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-bold text-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  >
+                    {loading ? 'Memproses...' : product.stock === 0 ? 'Stok Habis' : 'Bayar Sekarang'}
+                  </button>
+                )}
+
+                {paymentMethod === 'qris' && (
+                  <button
+                    onClick={handleQRISPurchase}
+                    disabled={loading || product.stock === 0}
+                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  >
+                    {loading ? 'Membuat QRIS...' : product.stock === 0 ? 'Stok Habis' : 'Bayar dengan QRIS'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {showQRIS && qrisPayment && (
+        <QRISPaymentModal
+          qrisPayment={qrisPayment}
+          onClose={handleCloseQRIS}
+          onPaymentComplete={handleQRISPaymentComplete}
+        />
+      )}
     </div>
   );
 }

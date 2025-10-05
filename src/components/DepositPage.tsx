@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ArrowLeft, Wallet } from 'lucide-react';
 import { Profile, QRISPayment } from '../lib/supabase';
-import { generateQRISPayment, simulateQRISPayment } from '../lib/qris';
+import { generateQRISPayment } from '../lib/qris';
+import QRISPaymentModal from './QRISPaymentModal';
 
 interface DepositPageProps {
   profile: Profile | null;
@@ -45,21 +46,34 @@ export default function DepositPage({ profile, onBack, onDeposit }: DepositPageP
 
       setQrisPayment(qris);
       setShowQRIS(true);
+    } catch (error) {
+      alert('Terjadi kesalahan saat membuat QRIS');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      await simulateQRISPayment(qris.id);
+  const handlePaymentComplete = async () => {
+    if (!qrisPayment) return;
 
-      await onDeposit(depositAmount, qris.id);
-      alert('Deposit berhasil!');
+    try {
+      const depositAmount = parseFloat(amount);
+      await onDeposit(depositAmount, qrisPayment.id);
+      alert('Deposit berhasil! Saldo Anda telah ditambahkan.');
       setAmount('');
       setShowQRIS(false);
       setQrisPayment(null);
       onBack();
     } catch (error) {
-      alert('Terjadi kesalahan saat deposit');
+      alert('Terjadi kesalahan saat memproses deposit');
       console.error(error);
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleCloseQRIS = () => {
+    setShowQRIS(false);
+    setQrisPayment(null);
   };
 
   return (
@@ -148,50 +162,24 @@ export default function DepositPage({ profile, onBack, onDeposit }: DepositPageP
               </div>
             </div>
 
-            {!showQRIS ? (
-              <button
-                onClick={handlePayment}
-                disabled={!amount || parseFloat(amount) <= 0}
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-              >
-                Bayar Sekarang
-              </button>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-8 flex flex-col items-center">
-                  <div className="bg-white p-6 rounded-xl shadow-lg">
-                    <div className="w-48 h-48 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                      <div className="text-center text-white">
-                        <p className="text-xs mb-2">QRIS CODE</p>
-                        {qrisPayment && (
-                          <p className="font-mono text-xs mb-2 px-2 break-all">
-                            {qrisPayment.qris_code}
-                          </p>
-                        )}
-                        <p className="font-bold text-2xl mb-1">
-                          Rp {parseFloat(amount).toLocaleString('id-ID')}
-                        </p>
-                        <p className="text-xs">Scan untuk bayar</p>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-4 text-center">
-                    Scan kode QRIS di atas dengan aplikasi pembayaran
-                  </p>
-                  {loading && (
-                    <div className="mt-4 flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                      <p className="text-sm text-gray-600 ml-2">Memproses pembayaran...</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            <button
+              onClick={handlePayment}
+              disabled={!amount || parseFloat(amount) <= 0 || loading}
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            >
+              {loading ? 'Membuat QRIS...' : 'Bayar Sekarang'}
+            </button>
           </div>
         </div>
       </div>
+
+      {showQRIS && qrisPayment && (
+        <QRISPaymentModal
+          qrisPayment={qrisPayment}
+          onClose={handleCloseQRIS}
+          onPaymentComplete={handlePaymentComplete}
+        />
+      )}
     </div>
   );
 }
